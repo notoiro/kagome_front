@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
   "fmt"
   "encoding/json"
   "net/http"
@@ -16,37 +15,27 @@ type TokenizerRequestBody struct {
 	Input string `json:"text"`
 }
 type TokenizerResponseBody struct {
-	Tokens string `json:"tokens"`
+	Tokens []tokenizer.TokenData `json:"tokens"`
 }
 
 func igOK(s string, _ bool) string {
 	return s
 }
 
-func tokenize(str string) string {
+func tokenize(str string) []tokenizer.TokenData {
 	if len(str) == 0 {
-		return ""
+		return nil
 	}
 	t, err := tokenizer.New(ipaneologd.Dict(), tokenizer.OmitBosEos())
 	if err != nil {
-		return ""
+		return nil
 	}
-	var ret []interface{}
 	tokens := t.Tokenize(str)
-	for _, v := range tokens {
-		ret = append(ret, map[string]interface{}{
-			"word_id":       v.ID,
-			"word_type":     v.Class.String(),
-			"word_position": v.Start,
-			"surface_form":  v.Surface,
-			"pos":           strings.Join(v.POS(), ","),
-			"base_form":     igOK(v.BaseForm()),
-			"reading":       igOK(v.Reading()),
-			"pronunciation": igOK(v.Pronunciation()),
-		})
-	}
-  var r, _ = json.Marshal(ret)
-	return string(r)
+  var tokenData []tokenizer.TokenData
+  for _, v := range tokens{
+    tokenData = append(tokenData, tokenizer.NewTokenData(v))
+  }
+  return tokenData
 }
 
 func (h *TokenizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request){
@@ -64,11 +53,11 @@ func (h *TokenizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request){
 
   tokens := tokenize(req.Input)
 
-  resp, err := json.Marshal(TokenizerResponseBody{
+	resp, err := json.Marshal(TokenizerResponseBody{
 		Tokens: tokens,
 	})
-  if err != nil {
-		http.Error(w, fmt.Sprintf("{\"error\":\"%v\"}", err), http.StatusInternalServerError)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("{\"status\":false,\"error\":\"%v\"}", err), http.StatusInternalServerError)
 		return
 	}
   w.WriteHeader(http.StatusOK)
